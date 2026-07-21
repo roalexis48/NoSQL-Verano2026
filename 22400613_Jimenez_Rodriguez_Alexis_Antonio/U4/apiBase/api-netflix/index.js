@@ -1,6 +1,7 @@
 const express = require("express");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json());
@@ -8,7 +9,7 @@ const PORT = 3000;
 
 app.use(morgan("dev"));
 
-mongoose.connect("mongodb://127.0.0.1:27017/netflix")
+mongoose.connect("mongodb+srv://grupo:grupo@servidorprueba.ygegryf.mongodb.net/netflix")
 .then(() => {
     console.log("Conectado correctamente a MongoDB (netflix)");
 })
@@ -293,3 +294,5 @@ app.delete("/series/:id", async (req, res) => {
 app.listen(PORT, () => {
     console.log("Servidor iniciado en http://localhost:" + PORT);
 });
+
+module.exports = app;
