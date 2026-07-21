@@ -17,8 +17,7 @@
 \## Intereses
 
 * Desarrollo Web
-* Inteligencia Artificial
-* Desarrollo Movil
+* I Desarrollo Movil
 
 
 
