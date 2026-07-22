@@ -7,61 +7,67 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
 
-dns.setServers([
-  '1.1.1.1',
-  '8.8.8.8'
-]);
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-mongoose.connect(
-  'mongodb+srv://grupo:grupo@servidorprueba.ygegryf.mongodb.net/netflix'
-)
-.then(() => {
-  console.log('Conectado correctamente a MongoDB');
-})
-.catch((error) => {
-  console.error('Error al conectar a MongoDB:', error);
+// --- CONEXIÓN OPTIMIZADA PARA SERVERLESS (VERCEL) ---
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return;
+  }
+  try {
+    await mongoose.connect(
+      'mongodb+srv://grupo:grupo@servidorprueba.ygegryf.mongodb.net/netflix'
+    );
+    isConnected = true;
+    console.log('Conectado correctamente a MongoDB');
+  } catch (error) {
+    console.error('Error al conectar a MongoDB:', error);
+    throw error;
+  }
+};
+
+// Middleware: Espera a que MongoDB esté conectado antes de procesar cualquier ruta
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    res.status(500).json({
+      mensaje: 'Error de conexión a la base de datos',
+      error: error.message
+    });
+  }
 });
 
-// Ruta principal para comprobar que la API funciona
+// Ruta principal
 app.get('/', (req, res) => {
-    res.send('API de Netflix funcionando correctamente');
+  res.send('API de Netflix funcionando correctamente');
 });
 
 // Colección películas
 const peliculaSchema = new mongoose.Schema(
   {},
-  {
-    strict: false,
-    collection: 'peliculas'
-  }
+  { strict: false, collection: 'peliculas' }
 );
-
-const Pelicula =
-  mongoose.models.Pelicula ||
-  mongoose.model('Pelicula', peliculaSchema);
+const Pelicula = mongoose.models.Pelicula || mongoose.model('Pelicula', peliculaSchema);
 
 // Colección series
 const serieSchema = new mongoose.Schema(
   {},
-  {
-    strict: false,
-    collection: 'series'
-  }
+  { strict: false, collection: 'series' }
 );
-
-const Serie =
-  mongoose.models.Serie ||
-  mongoose.model('Serie', serieSchema);
+const Serie = mongoose.models.Serie || mongoose.model('Serie', serieSchema);
 
 // Obtener todas las películas
 app.get('/peliculas', async (req, res) => {
   try {
     const peliculas = await Pelicula.find();
-
     return res.json(peliculas);
   } catch (error) {
     return res.status(500).json({
@@ -75,13 +81,9 @@ app.get('/peliculas', async (req, res) => {
 app.get('/peliculas/:id', async (req, res) => {
   try {
     const pelicula = await Pelicula.findById(req.params.id);
-
     if (!pelicula) {
-      return res.status(404).json({
-        mensaje: 'Película no encontrada'
-      });
+      return res.status(404).json({ mensaje: 'Película no encontrada' });
     }
-
     return res.json(pelicula);
   } catch (error) {
     return res.status(500).json({
@@ -95,7 +97,6 @@ app.get('/peliculas/:id', async (req, res) => {
 app.get('/series', async (req, res) => {
   try {
     const series = await Serie.find();
-
     return res.json(series);
   } catch (error) {
     return res.status(500).json({
@@ -109,13 +110,9 @@ app.get('/series', async (req, res) => {
 app.get('/series/:id', async (req, res) => {
   try {
     const serie = await Serie.findById(req.params.id);
-
     if (!serie) {
-      return res.status(404).json({
-        mensaje: 'Serie no encontrada'
-      });
+      return res.status(404).json({ mensaje: 'Serie no encontrada' });
     }
-
     return res.json(serie);
   } catch (error) {
     return res.status(500).json({
@@ -125,8 +122,6 @@ app.get('/series/:id', async (req, res) => {
   }
 });
 
-// Solo inicia el puerto cuando lo ejecutas localmente.
-// En Vercel se exporta la aplicación.
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Servidor ejecutándose en http://localhost:${port}`);
