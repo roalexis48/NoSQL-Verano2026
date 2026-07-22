@@ -1,298 +1,136 @@
-const express = require("express");
-const morgan = require("morgan");
-const mongoose = require("mongoose");
-const cors = require("cors");
+const express = require('express');
+const morgan = require('morgan');
+const mongoose = require('mongoose');
+const dns = require('dns');
+const cors = require('cors');
 
 const app = express();
+const port = process.env.PORT || 3000;
+
+dns.setServers([
+  '1.1.1.1',
+  '8.8.8.8'
+]);
+
+app.use(cors());
 app.use(express.json());
-const PORT = 3000;
+app.use(morgan('dev'));
 
-app.use(morgan("dev"));
-
-mongoose.connect("mongodb+srv://grupo:grupo@servidorprueba.ygegryf.mongodb.net/netflix")
+mongoose.connect(
+  'mongodb+srv://grupo:grupo@servidorprueba.ygegryf.mongodb.net/netflix'
+)
 .then(() => {
-    console.log("Conectado correctamente a MongoDB (netflix)");
+  console.log('Conectado correctamente a MongoDB');
 })
 .catch((error) => {
-    console.error("Error al conectar con MongoDB:", error);
+  console.error('Error al conectar a MongoDB:', error);
 });
 
-// Esquema de Películas
+// Ruta principal para comprobar que la API funciona
+app.get('/', (req, res) => {
+    res.send('API de Netflix funcionando correctamente');
+});
+
+// Colección películas
 const peliculaSchema = new mongoose.Schema(
-    {
-        titulo: { type: String, required: true, trim: true },
-        genero: { type: String, required: true, trim: true },
-        año: { type: Number, required: true },
-        duracion: { type: Number, required: true },
-        idioma: { type: String, required: true, trim: true },
-        calificacion: { type: Number, required: true },
-        nc: { type: String, trim: true }
-    },
-    { timestamps: true }
+  {},
+  {
+    strict: false,
+    collection: 'peliculas'
+  }
 );
 
-// Esquema de Series
+const Pelicula =
+  mongoose.models.Pelicula ||
+  mongoose.model('Pelicula', peliculaSchema);
+
+// Colección series
 const serieSchema = new mongoose.Schema(
-    {
-        titulo: { type: String, required: true, trim: true },
-        genero: { type: String, required: true, trim: true },
-        año: { type: Number, required: true },
-        temporadas: { type: Number, required: true },
-        episodios: { type: Number, required: true },
-        idioma: { type: String, required: true, trim: true },
-        calificacion: { type: Number, required: true },
-        nc: { type: String, trim: true }
-    },
-    { timestamps: true }
+  {},
+  {
+    strict: false,
+    collection: 'series'
+  }
 );
 
-const Pelicula = mongoose.model("Pelicula", peliculaSchema, "peliculas");
-const Serie = mongoose.model("Serie", serieSchema, "series");
+const Serie =
+  mongoose.models.Serie ||
+  mongoose.model('Serie', serieSchema);
 
+// Obtener todas las películas
+app.get('/peliculas', async (req, res) => {
+  try {
+    const peliculas = await Pelicula.find();
 
-// 1. Obtener todas las películas
-app.get("/peliculas", async (req, res) => {
-    try {
-        const peliculas = await Pelicula.find();
-        res.json(peliculas);
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al obtener las películas",
-            error: error
-        });
+    return res.json(peliculas);
+  } catch (error) {
+    return res.status(500).json({
+      mensaje: 'Error al obtener las películas',
+      error: error.message
+    });
+  }
+});
+
+// Obtener una película por ID
+app.get('/peliculas/:id', async (req, res) => {
+  try {
+    const pelicula = await Pelicula.findById(req.params.id);
+
+    if (!pelicula) {
+      return res.status(404).json({
+        mensaje: 'Película no encontrada'
+      });
     }
+
+    return res.json(pelicula);
+  } catch (error) {
+    return res.status(500).json({
+      mensaje: 'Error al obtener la película',
+      error: error.message
+    });
+  }
 });
 
-// 2. Obtener una película por ID
-app.get("/peliculas/:id", async (req, res) => {
-    try {
-        const id = req.params.id; 
-        const pelicula = await Pelicula.findById(id);
-        if (!pelicula) {
-            return res.status(404).json({
-                mensaje: "Película no encontrada"
-            });
-        }
-        res.json(pelicula);
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al obtener la película",
-            error: error
-        });
+// Obtener todas las series
+app.get('/series', async (req, res) => {
+  try {
+    const series = await Serie.find();
+
+    return res.json(series);
+  } catch (error) {
+    return res.status(500).json({
+      mensaje: 'Error al obtener las series',
+      error: error.message
+    });
+  }
+});
+
+// Obtener una serie por ID
+app.get('/series/:id', async (req, res) => {
+  try {
+    const serie = await Serie.findById(req.params.id);
+
+    if (!serie) {
+      return res.status(404).json({
+        mensaje: 'Serie no encontrada'
+      });
     }
+
+    return res.json(serie);
+  } catch (error) {
+    return res.status(500).json({
+      mensaje: 'Error al obtener la serie',
+      error: error.message
+    });
+  }
 });
 
-// 3. Registrar una nueva película
-app.post("/peliculas", async (req, res) => {
-    try {
-        const { titulo, genero, año, duracion, idioma, calificacion, nc } = req.body;
-        
-        if (!titulo || !genero || !año || !duracion || !idioma || !calificacion) {
-            return res.status(400).json({
-                mensaje: "Faltan datos obligatorios de la película"
-            });
-        }
-
-        const nuevaPelicula = new Pelicula({
-            titulo, genero, año, duracion, idioma, calificacion, nc
-        });
-
-        const peliculaGuardada = await nuevaPelicula.save();
-        res.status(201).json({
-            mensaje: "Película registrada correctamente",
-            pelicula: peliculaGuardada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al guardar la película",
-            error: error
-        });
-    }
-});
-
-// 4. Actualizar una película por ID
-app.put("/peliculas/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        const { titulo, genero, año, duracion, idioma, calificacion, nc } = req.body;
-
-        if (!titulo || !genero || !año || !duracion || !idioma || !calificacion) {
-            return res.status(400).json({
-                mensaje: "Faltan datos obligatorios de la película"
-            });
-        }
-
-        const peliculaActualizada = await Pelicula.findByIdAndUpdate(
-            id,
-            { titulo, genero, año, duracion, idioma, calificacion, nc },
-            { new: true, runValidators: true }
-        );
-
-        if (!peliculaActualizada) {
-            return res.status(404).json({
-                mensaje: "Película no encontrada"
-            });
-        }
-
-        res.json({
-            mensaje: "Película actualizada correctamente",
-            pelicula: peliculaActualizada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al actualizar la película",
-            error: error
-        });
-    }
-});
-
-// 5. Eliminar una película por ID
-app.delete("/peliculas/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        const peliculaEliminada = await Pelicula.findByIdAndDelete(id);
-
-        if (!peliculaEliminada) {
-            return res.status(404).json({
-                mensaje: "Película no encontrada"
-            });
-        }
-
-        res.json({
-            mensaje: "Película eliminada correctamente",
-            pelicula: peliculaEliminada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al eliminar la película",
-            error: error
-        });
-    }
-});
-
-
-// 1. Obtener todas las series
-app.get("/series", async (req, res) => {
-    try {
-        const series = await Serie.find();
-        res.json(series);
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al obtener las series",
-            error: error
-        });
-    }
-});
-
-// 2. Obtener una serie por ID
-app.get("/series/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        const serie = await Serie.findById(id);
-        if (!serie) {
-            return res.status(404).json({
-                mensaje: "Serie no encontrada"
-            });
-        }
-        res.json(serie);
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al obtener la serie",
-            error: error
-        });
-    }
-});
-
-// 3. Registrar una nueva serie
-app.post("/series", async (req, res) => {
-    try {
-        const { titulo, genero, año, temporadas, episodios, idioma, calificacion, nc } = req.body;
-
-        if (!titulo || !genero || !año || !temporadas || !episodios || !idioma || !calificacion) {
-            return res.status(400).json({
-                mensaje: "Faltan datos obligatorios de la serie"
-            });
-        }
-
-        const nuevaSerie = new Serie({
-            titulo, genero, año, temporadas, episodios, idioma, calificacion, nc
-        });
-
-        const serieGuardada = await nuevaSerie.save();
-        res.status(201).json({
-            mensaje: "Serie registrada correctamente",
-            serie: serieGuardada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al guardar la serie",
-            error: error
-        });
-    }
-});
-
-// 4. Actualizar una serie por ID
-app.put("/series/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        const { titulo, genero, año, temporadas, episodios, idioma, calificacion, nc } = req.body;
-
-        if (!titulo || !genero || !año || !temporadas || !episodios || !idioma || !calificacion) {
-            return res.status(400).json({
-                mensaje: "Faltan datos obligatorios de la serie"
-            });
-        }
-
-        const serieActualizada = await Serie.findByIdAndUpdate(
-            id,
-            { titulo, genero, año, temporadas, episodios, idioma, calificacion, nc },
-            { new: true, runValidators: true }
-        );
-
-        if (!serieActualizada) {
-            return res.status(404).json({
-                mensaje: "Serie no encontrada"
-            });
-        }
-
-        res.json({
-            mensaje: "Serie actualizada correctamente",
-            serie: serieActualizada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al actualizar la serie",
-            error: error
-        });
-    }
-});
-
-// 5. Eliminar una serie por ID
-app.delete("/series/:id", async (req, res) => {
-    try {
-        const id = req.params.id;
-        const serieEliminada = await Serie.findByIdAndDelete(id);
-
-        if (!serieEliminada) {
-            return res.status(404).json({
-                mensaje: "Serie no encontrada"
-            });
-        }
-
-        res.json({
-            mensaje: "Serie eliminada correctamente",
-            serie: serieEliminada
-        });
-    } catch (error) {
-        res.status(500).json({
-            mensaje: "Error al eliminar la serie",
-            error: error
-        });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log("Servidor iniciado en http://localhost:" + PORT);
-});
+// Solo inicia el puerto cuando lo ejecutas localmente.
+// En Vercel se exporta la aplicación.
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Servidor ejecutándose en http://localhost:${port}`);
+  });
+}
 
 module.exports = app;
